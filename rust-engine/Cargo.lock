@@ -1100,6 +1100,7 @@ dependencies = [
  "pcap",
  "pnet",
  "prost",
+ "signature",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -1206,6 +1207,12 @@ dependencies = [
  "errno 0.3.14",
  "libc",
 ]
+
+[[package]]
+name = "signature"
+version = "3.0.0-rc.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f1880df446116126965eeec169136b2e0251dba37c6223bcc819569550edea3"
 
 [[package]]
 name = "slab"
