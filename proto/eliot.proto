@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package eliot;
+
+option go_package = "github.com/krishpranav/eliot/go-orchestrator/internal/eliotpb";
+
+enum ThreatType {
+  UNKNOWN          = 0;
+  ARP_SPOOF        = 1;
+  DNS_TUNNEL       = 2;
+  DNS_DGA          = 3;
+  TLS_ANOMALY      = 4;
+  PORT_SCAN        = 5;
+  SIGNATURE_MATCH  = 6;
+}
+
+enum Protocol {
+  PROTO_UNKNOWN = 0;
+  TCP           = 1;
+  UDP           = 2;
+  ICMP          = 3;
+  ARP           = 4;
+}
+
+message CaptureConfig {
+  string interface   = 1;
+  string bpf_filter  = 2;
+  repeated string signatures = 3;
+}
+
+message ThreatEvent {
+  string    src_ip          = 1;
+  string    dst_ip          = 2;
+  string    src_mac         = 3;
+  string    dst_mac         = 4;
+  uint32    src_port        = 5;
+  uint32    dst_port        = 6;
+  Protocol  protocol        = 7;
+  ThreatType threat_type    = 8;
+  float     severity        = 9;
+  string    description     = 10;
+  bytes     raw_payload     = 11;
+  int64     timestamp_ns    = 12;
+  string    ja3_fingerprint = 13;
+  string    matched_sig     = 14;
+}
+
+message Empty {}
+
+message StatusResponse {
+  bool   success = 1;
+  string message = 2;
+}
+
+message Alert {
+  string     id               = 1;
+  ThreatEvent event           = 2;
+  int32      occurrence_count = 3;
+  int64      first_seen       = 4;
+  int64      last_seen        = 5;
+  bool       acknowledged     = 6;
+}
+
+message AlertList {
+  repeated Alert alerts = 1;
+}
+
+message HistoryRequest {
+  int64 since_timestamp = 1;
+  int32 limit           = 2;
+}
+
+message Rule {
+  string     id                 = 1;
+  string     name               = 2;
+  ThreatType threat_type        = 3;
+  float      severity_threshold = 4;
+  repeated string whitelist_ips = 5;
+  bool       enabled            = 6;
+}
+
+message RuleSet {
+  repeated Rule rules = 1;
+}
+
+service SecurityEngine {
+  // Go calls this → Rust starts capturing → streams ThreatEvents back
+  rpc StartCapture (CaptureConfig)   returns (stream ThreatEvent);
+  // Go calls this to gracefully stop capture
+  rpc StopCapture  (Empty)           returns (StatusResponse);
+  // Ping/pong for health monitoring
+  rpc HealthCheck  (Empty)           returns (StatusResponse);
+}
+
+// Go exposes this. Swift is the only client (for now).
+service Orchestrator {
+  // Swift subscribes → Go streams enriched Alerts in real time
+  rpc SubscribeAlerts (Empty)          returns (stream Alert);
+  // Swift asks for past alerts
+  rpc GetHistory      (HistoryRequest) returns (AlertList);
+  // Swift pushes updated rules (whitelist, thresholds)
+  rpc UpdateRules     (RuleSet)        returns (StatusResponse);
+  // Swift clicks "Start" in the UI → Go tells Rust to start capturing
+  rpc StartScan       (CaptureConfig)  returns (StatusResponse);
+  // Swift clicks "Stop"
+  rpc StopScan        (Empty)          returns (StatusResponse);
+  rpc HealthCheck     (Empty)          returns (StatusResponse);
+}
